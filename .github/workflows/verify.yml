@@ -1,0 +1,46 @@
+name: verify
+on:
+  push:
+    branches: [ci/ecdf-compress]
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, fixed]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Use unfixed source for baseline
+        if: matrix.variant == 'baseline'
+        run: git checkout HEAD~2 -- lib/matplotlib/axes/_axes.py && git diff --cached --stat
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --prefer-binary --group build --group test
+          python -m pip install --no-deps --no-build-isolation --verbose \
+            --config-settings=setup-args="-DrcParams-backend=Agg" --editable .[dev] > build.log 2>&1 || (tail -50 build.log; exit 1)
+          python -c "import matplotlib; print(matplotlib.__version__)"
+      - name: ecdf tests
+        run: pytest -rfEsXR -k ecdf lib/matplotlib/tests/test_axes.py --color=yes || true
+      - name: full test_axes.py
+        run: pytest -rfEsXR -n auto --timeout=300 lib/matplotlib/tests/test_axes.py --color=yes
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install ruff pre-commit
+      - name: ruff (as in linting.yml)
+        run: ruff check
+      - name: pre-commit on changed files
+        run: pre-commit run --hook-stage manual --files lib/matplotlib/axes/_axes.py lib/matplotlib/tests/test_axes.py
