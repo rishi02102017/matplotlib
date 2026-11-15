@@ -1,0 +1,19 @@
+name: probe
+on:
+  push:
+    branches: [ci/probe]
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        which: [release, nightly]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          if [ "${{ matrix.which }}" = release ]; then pip install -q matplotlib; else pip install -q --pre --extra-index-url https://pypi.anaconda.org/scientific-python-nightly-wheels/simple --upgrade matplotlib numpy; fi
+      - run: for f in probe*.py; do echo "=== $f"; MPLBACKEND=Agg python $f 2>&1; done
